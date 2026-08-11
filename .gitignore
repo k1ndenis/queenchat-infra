@@ -16,6 +16,8 @@ Thumbs.db
 backups/
 uploads/
 releases/*.apk
+__pycache__/
+*.py[cod]
 *.pid
 *.seed
 *.log
