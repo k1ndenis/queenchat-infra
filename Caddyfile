@@ -5,15 +5,32 @@ www.queenchat.ru {
 queenchat.ru {
     tls k1ndenis.dev@gmail.com
 
+    # CORS is owned by FastAPI so credentials never coexist with a wildcard.
     header {
-        Access-Control-Allow-Origin *
-        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Requested-With"
-        Access-Control-Allow-Credentials "true"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+    }
+
+    @uploads path /api/files/upload-*
+    handle @uploads {
+        request_body {
+            max_size 110MB
+        }
+        reverse_proxy api:3002 {
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 
     handle /api/* {
-        reverse_proxy api:3002
+        request_body {
+            max_size 1MB
+        }
+        reverse_proxy api:3002 {
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 
     @chat_background path_regexp chat_background ^/uploads/images/chat_background_[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$
