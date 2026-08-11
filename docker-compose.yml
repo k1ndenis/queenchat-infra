@@ -14,6 +14,11 @@ services:
       retries: 5
     networks:
       - queenchat_network
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
@@ -26,6 +31,7 @@ services:
       retries: 5
     networks:
       - queenchat_network
+    logging: *default-logging
 
   api:
     build:
@@ -52,6 +58,8 @@ services:
       TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:?Set TURN_SHARED_SECRET in .env before deploying coturn}
       TURN_HOST: ${TURN_HOST:-turn.queenchat.ru}
       TURN_CREDENTIAL_TTL_SECONDS: ${TURN_CREDENTIAL_TTL_SECONDS:-3600}
+      PROMETHEUS_URL: http://prometheus:9090
+      GRAFANA_PUBLIC_URL: ${GRAFANA_PUBLIC_URL:-}
     volumes:
       - ./api/firebase-service-account.json:/app/firebase-service-account.json
       - uploads_data:/app/uploads
@@ -63,6 +71,7 @@ services:
       start_period: 10s
     networks:
       - queenchat_network
+    logging: *default-logging
 
   client:
     build:
@@ -83,6 +92,7 @@ services:
       - api
     networks:
       - queenchat_network
+    logging: *default-logging
 
   caddy:
     image: caddy:2-alpine
@@ -100,6 +110,7 @@ services:
     depends_on:
       - api
       - client
+    logging: *default-logging
 
   coturn:
     image: coturn/coturn:4.7.0
@@ -121,12 +132,93 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    logging: *default-logging
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=14d
+      - --storage.tsdb.retention.size=1500MB
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks: [queenchat_network]
+    mem_limit: 180m
+    logging: *default-logging
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks: [queenchat_network]
+    mem_limit: 60m
+    logging: *default-logging
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Set GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks: [queenchat_network]
+    mem_limit: 180m
+    logging: *default-logging
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    command: ["--path.rootfs=/host", "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"]
+    volumes: ["/:/host:ro,rslave"]
+    networks: [queenchat_network]
+    mem_limit: 80m
+    logging: *default-logging
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?sslmode=disable
+    networks: [queenchat_network]
+    mem_limit: 50m
+    logging: *default-logging
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.72.0
+    restart: unless-stopped
+    command: ["--redis.addr=redis://redis:6379"]
+    networks: [queenchat_network]
+    mem_limit: 40m
+    logging: *default-logging
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.26.0
+    restart: unless-stopped
+    networks: [queenchat_network]
+    mem_limit: 50m
+    logging: *default-logging
 
 volumes:
   pg_data_queenchat:
   redis_data_queenchat:
   caddy_data:
   uploads_data:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
 
 networks:
   queenchat_network:

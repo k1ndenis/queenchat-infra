@@ -1,0 +1,12 @@
+global:
+  resolve_timeout: 5m
+route:
+  receiver: "null"
+  group_by: [alertname, job, severity]
+  group_wait: 45s
+  group_interval: 10m
+  repeat_interval: 6h
+receivers:
+  - name: "null"
+# To enable Telegram, use the native telegram_configs receiver from the
+# documented template after ALERT_TELEGRAM_BOT_TOKEN and CHAT_ID are supplied.

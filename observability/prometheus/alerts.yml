@@ -1,0 +1,107 @@
+groups:
+  - name: queenchat.availability
+    rules:
+      - alert: ApiDown
+        expr: up{job="queenchat-api"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "API down", description: "QueenChat API has been unreachable for 1m."}
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Prometheus target down", description: "{{ $labels.job }} is unreachable."}
+      - alert: SiteUnavailable
+        expr: probe_success{job="blackbox-https"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Public site unavailable", description: "https://queenchat.ru probe failed for 2m."}
+      - alert: TLSExpirySoon
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox-https"} - time() < 14*24*3600
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "TLS expiry soon", description: "TLS certificate expires in under 14 days."}
+      - alert: TLSExpiryCritical
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox-https"} - time() < 7*24*3600
+        for: 15m
+        labels: {severity: critical}
+        annotations: {summary: "TLS expiry critical", description: "TLS certificate expires in under 7 days."}
+  - name: queenchat.resources
+    rules:
+      - alert: DiskUsageWarning
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 75
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Disk usage high", description: "Root filesystem is over 75%."}
+      - alert: DiskUsageCritical
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 85
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Disk usage critical", description: "Root filesystem is over 85%."}
+      - alert: DiskUsageEmergency
+        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 92
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Disk usage emergency", description: "Root filesystem is over 92%."}
+      - alert: MemoryAvailableLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < .15
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Memory available low", description: "Available RAM is below 15%."}
+      - alert: MemoryAvailableCritical
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < .08
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Memory available critical", description: "Available RAM is below 8%."}
+      - alert: CpuHigh
+        expr: 100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 85
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "CPU high", description: "CPU is above 85% for 10m."}
+      - alert: CpuCritical
+        expr: 100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 95
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "CPU critical", description: "CPU is above 95% for 5m."}
+  - name: queenchat.application
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > .02 and sum(rate(http_requests_total[5m])) > .1
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "High API error rate", description: "5xx rate is above 2% for 5m."}
+      - alert: ApiErrorRateCritical
+        expr: sum(rate(http_requests_total{status_code=~"5.."}[2m])) / sum(rate(http_requests_total[2m])) > .10 and sum(rate(http_requests_total[2m])) > .1
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Critical API error rate", description: "5xx rate is above 10% for 2m."}
+      - alert: RpsHigh
+        expr: sum(rate(http_requests_total[5m])) > 50
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "High request rate", description: "API is above 50 RPS."}
+      - alert: RpsCritical
+        expr: sum(rate(http_requests_total[2m])) > 150
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Critical request rate", description: "API is above 150 RPS."}
+      - alert: ApiLatencyHigh
+        expr: histogram_quantile(.95, sum by(le) (rate(http_request_duration_seconds_bucket{normalized_route!~"/api/files/upload.*"}[5m]))) > 1
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "API latency high", description: "API p95 is above 1s for 5m."}
+      - alert: ApiLatencyCritical
+        expr: histogram_quantile(.95, sum by(le) (rate(http_request_duration_seconds_bucket{normalized_route!~"/api/files/upload.*"}[3m]))) > 3
+        for: 3m
+        labels: {severity: critical}
+        annotations: {summary: "API latency critical", description: "API p95 is above 3s for 3m."}
+      - alert: RedisEvictions
+        expr: increase(redis_evicted_keys_total[5m]) > 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Redis evictions", description: "Redis evicted keys."}
+      - alert: PostgresDeadlocks
+        expr: increase(pg_stat_database_deadlocks[5m]) > 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "PostgreSQL deadlocks", description: "PostgreSQL reported deadlocks."}

@@ -1,0 +1,7 @@
+receivers:
+  - name: telegram
+    telegram_configs:
+      - bot_token: ${ALERT_TELEGRAM_BOT_TOKEN}
+        chat_id: ${ALERT_TELEGRAM_CHAT_ID}
+        parse_mode: HTML
+        message: '{{ if eq .Status "resolved" }}✅ QueenChat recovered{{ else }}🚨 QueenChat: {{ .CommonAnnotations.summary }}{{ end }}\nSeverity: {{ .CommonLabels.severity }}\n{{ .CommonAnnotations.description }}'

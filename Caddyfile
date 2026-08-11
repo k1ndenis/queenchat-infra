@@ -24,6 +24,11 @@ queenchat.ru {
         }
     }
 
+    # Deliberately minimal public liveness endpoint; no dependency details.
+    handle /health {
+        reverse_proxy api:3002
+    }
+
     handle /api/* {
         request_body {
             max_size 1MB
