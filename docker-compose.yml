@@ -7,17 +7,16 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - pg_data_queenchat:/var/lib/postgresql/data
-    ports:
-      - "5433:5432" 
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - queenchat_network
+
   redis:
     image: redis:7-alpine
-    ports:
-      - "6380:6379"
     volumes:
       - redis_data_queenchat:/data
     healthcheck:
@@ -25,15 +24,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - queenchat_network
+
   api:
     build:
       context: ./api
     image: queenchat-api
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     environment:
       DB_HOST: db
       DB_PORT: 5432
@@ -42,26 +39,89 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-    ports:
-      - "8091:3002"
+      FIREBASE_SERVICE_ACCOUNT: /app/firebase-service-account.json
+      SMS_API_ID: ${SMS_API_ID}
+      RECAPTCHA_SITE_KEY: ${RECAPTCHA_SITE_KEY}
+      RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:?Set TURN_SHARED_SECRET in .env before deploying coturn}
+      TURN_HOST: ${TURN_HOST:-turn.queenchat.ru}
+      TURN_CREDENTIAL_TTL_SECONDS: ${TURN_CREDENTIAL_TTL_SECONDS:-3600}
+    volumes:
+      - ./api/firebase-service-account.json:/app/firebase-service-account.json
+      - uploads_data:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - queenchat_network
+
   client:
     build:
       context: ./client
       args:
         VITE_API_URL: ${VITE_API_URL}
         VITE_WS_URL: ${VITE_WS_URL}
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
+        VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY}
     image: queenchat-client
-    ports:
-     - "3100:80"
     depends_on:
-     - api
+      - api
+    networks:
+      - queenchat_network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: queenchat-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./releases:/srv/releases:ro
+      - caddy_data:/data
+    networks:
+      - queenchat_network
+    depends_on:
+      - api
+      - client
+
+  coturn:
+    image: coturn/coturn:4.7.0
+    restart: unless-stopped
+    # Host networking avoids Docker's per-port UDP proxy and lets coturn bind
+    # its configured relay range directly on the VPS public interface.
+    network_mode: host
+    environment:
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:?Set TURN_SHARED_SECRET in .env before deploying coturn}
+    command:
+      - /bin/sh
+      - -ec
+      - exec turnserver -c /etc/coturn/turnserver.conf --static-auth-secret="$$TURN_SHARED_SECRET"
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pidof turnserver >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pg_data_queenchat:
   redis_data_queenchat:
+  caddy_data:
+  uploads_data:
+
+networks:
+  queenchat_network:
+    driver: bridge

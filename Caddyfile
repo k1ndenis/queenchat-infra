@@ -1,0 +1,46 @@
+www.queenchat.ru {
+    redir https://queenchat.ru{uri} permanent
+}
+
+queenchat.ru {
+    tls k1ndenis.dev@gmail.com
+
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Requested-With"
+        Access-Control-Allow-Credentials "true"
+    }
+
+    handle /api/* {
+        reverse_proxy api:3002
+    }
+
+    @chat_background path_regexp chat_background ^/uploads/images/chat_background_[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$
+    handle @chat_background {
+        header Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy api:3002
+    }
+
+    handle /uploads/* {
+        reverse_proxy api:3002
+    }
+
+    handle /downloads/queenchat.apk {
+        rewrite * /queenchat.apk
+        root * /srv/releases
+        header Content-Type application/vnd.android.package-archive
+        header Content-Disposition "attachment; filename=QueenChat.apk"
+        header Cache-Control "no-cache"
+        file_server
+    }
+
+    handle {
+        reverse_proxy client:80
+    }
+}
+
+kindenis.ru {
+    tls k1ndenis.dev@gmail.com
+    reverse_proxy portfolio:80
+}

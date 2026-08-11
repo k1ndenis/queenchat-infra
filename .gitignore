@@ -3,30 +3,24 @@
 .env.local
 .env.production
 
-# IDE
+# IDE and OS
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Docker
+# Runtime and deployment-only data
+backups/
+uploads/
+releases/*.apk
 *.pid
 *.seed
-
-# Logs
 *.log
 logs/
-
-# Temporary files
 tmp/
 temp/
 *.tmp
-
-# Local development
 *.local
-EOF
