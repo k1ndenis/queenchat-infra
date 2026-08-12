@@ -62,23 +62,14 @@ queenchat.ru {
         reverse_proxy api:3002
     }
 
-    @android_apk path_regexp android_apk ^/downloads/queenchat-[0-9]+\.[0-9]+\.[0-9]+\.apk$
-    handle @android_apk {
-        uri strip_prefix /downloads
-        root * /srv/releases
-        header Content-Type application/vnd.android.package-archive
-        header Content-Disposition "attachment"
-        header Cache-Control "public, max-age=31536000, immutable"
-        file_server
-    }
-
-    # Legacy link remains available, but versioned APK files are immutable release artifacts.
     handle /downloads/queenchat.apk {
         rewrite * /queenchat.apk
         root * /srv/releases
         header Content-Type application/vnd.android.package-archive
         header Content-Disposition "attachment; filename=QueenChat.apk"
-        header Cache-Control "no-cache"
+        # The URL is intentionally reused for every release, so clients must
+        # revalidate rather than retain a stale APK indefinitely.
+        header Cache-Control "no-cache, must-revalidate"
         file_server
     }
 
