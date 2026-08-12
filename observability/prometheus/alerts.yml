@@ -128,12 +128,12 @@ groups:
         labels: {severity: critical, service: host}
         annotations: {summary: "Root filesystem usage is emergency", description: "Root filesystem is over 92% used."}
       - alert: DiskWillFillIn48Hours
-        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h], 48*3600) < 0 and deriv(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) < -1
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h], 48*3600) < 0 and deriv(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) < -1 and count_over_time(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) >= 600
         for: 30m
         labels: {severity: warning, service: host}
         annotations: {summary: "Root filesystem may fill within 48 hours", description: "Free disk is declining and the current trend predicts exhaustion within 48 hours."}
       - alert: DiskWillFillIn24Hours
-        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h], 24*3600) < 0 and deriv(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) < -1
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h], 24*3600) < 0 and deriv(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) < -1 and count_over_time(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) >= 600
         for: 30m
         labels: {severity: critical, service: host}
         annotations: {summary: "Root filesystem may fill within 24 hours", description: "Free disk is declining and the current trend predicts exhaustion within 24 hours."}
