@@ -22,7 +22,11 @@ scrape_configs:
   - job_name: blackbox-https
     metrics_path: /probe
     params: {module: [http_2xx]}
-    static_configs: [{targets: [https://queenchat.ru]}]
+    static_configs:
+      - targets: [https://queenchat.ru]
+        labels: {target: queenchat.ru}
+      - targets: [https://monitor.queenchat.ru]
+        labels: {target: monitor.queenchat.ru}
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

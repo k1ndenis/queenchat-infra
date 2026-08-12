@@ -1,0 +1,51 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="test"}'
+        values: '10x15'
+      - series: 'node_memory_MemTotal_bytes{instance="test"}'
+        values: '100x15'
+      - series: 'node_filesystem_avail_bytes{instance="test",mountpoint="/",fstype="ext4"}'
+        values: '20x15'
+      - series: 'node_filesystem_size_bytes{instance="test",mountpoint="/",fstype="ext4"}'
+        values: '100x15'
+      - series: 'node_filesystem_files_free{instance="test",mountpoint="/",fstype="ext4"}'
+        values: '100x15'
+      - series: 'node_filesystem_files{instance="test",mountpoint="/",fstype="ext4"}'
+        values: '1000x15'
+      - series: 'redis_up{instance="test"}'
+        values: '0x15'
+      - series: 'pg_up{instance="test"}'
+        values: '0x15'
+      - series: 'http_requests_total{status_code="200"}'
+        values: '0+10x15'
+      - series: 'http_requests_total{status_code="500"}'
+        values: '0+1x15'
+      - series: 'http_request_duration_seconds_bucket{le="1"}'
+        values: '0x15'
+      - series: 'http_request_duration_seconds_bucket{le="+Inf"}'
+        values: '0+20x15'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: MemoryAvailableLow
+        exp_alerts:
+          - exp_labels: {alertname: MemoryAvailableLow, severity: warning, service: host, instance: test}
+            exp_annotations: {summary: "Host memory available is low", description: "Available memory is below 15%."}
+      - eval_time: 11m
+        alertname: DiskUsageWarning
+        exp_alerts:
+          - exp_labels: {alertname: DiskUsageWarning, severity: warning, service: host, instance: test, mountpoint: /, fstype: ext4}
+            exp_annotations: {summary: "Root filesystem usage is high", description: "Root filesystem is over 75% used."}
+      - eval_time: 6m
+        alertname: RedisDown
+        exp_alerts:
+          - exp_labels: {alertname: RedisDown, severity: critical, service: redis, instance: test}
+            exp_annotations: {summary: "Redis is unreachable", description: "redis_exporter cannot connect to Redis for 1 minute."}
+      - eval_time: 6m
+        alertname: PostgresDown
+        exp_alerts:
+          - exp_labels: {alertname: PostgresDown, severity: critical, service: postgres, instance: test}
+            exp_annotations: {summary: "PostgreSQL is unreachable", description: "postgres_exporter cannot connect to PostgreSQL for 1 minute."}

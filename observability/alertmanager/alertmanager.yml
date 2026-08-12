@@ -1,16 +1,44 @@
 global:
   resolve_timeout: 5m
 route:
-  receiver: telegram
+  receiver: "null"
   group_by: [alertname, job, severity]
   group_wait: 45s
   group_interval: 10m
   repeat_interval: 6h
+  routes:
+    - matchers: [severity="info"]
+      receiver: "null"
+    - matchers: [severity="warning"]
+      receiver: telegram-warning
+      repeat_interval: 6h
+    - matchers: [severity="critical"]
+      receiver: telegram-critical
+      group_wait: 30s
+      repeat_interval: 2h
+inhibit_rules:
+  - source_matchers: [alertname="ApiDown"]
+    target_matchers: [alertname="PrometheusTargetDown"]
+    equal: [job]
+  - source_matchers: [alertname="MemoryAvailableCritical"]
+    target_matchers: [alertname="MemoryAvailableLow"]
+    equal: [service]
+  - source_matchers: [alertname="DiskUsageCritical"]
+    target_matchers: [alertname="DiskUsageWarning"]
+    equal: [service]
 receivers:
-  - name: telegram
+  - name: "null"
+  - name: telegram-warning
     telegram_configs:
       - bot_token: __ALERT_TELEGRAM_BOT_TOKEN__
         chat_id: __ALERT_TELEGRAM_CHAT_ID__
         parse_mode: HTML
         send_resolved: true
-        message: '{{ if eq .Status "resolved" }}✅ QueenChat recovered{{ else }}🚨 QueenChat: {{ .CommonAnnotations.summary }}{{ end }}\nSeverity: {{ .CommonLabels.severity }}\n{{ .CommonAnnotations.description }}'
+        message: '{{ if eq .Status "resolved" }}✅ <b>QueenChat recovered</b>\n<b>{{ .CommonLabels.alertname }}</b>\nResolved: {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}{{ else }}🚨 <b>QueenChat alert</b>\n<b>{{ .CommonLabels.alertname }}</b>\nSeverity: {{ .CommonLabels.severity }}\nService: {{ .CommonLabels.service }}\nStarted: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}\nSummary: {{ .CommonAnnotations.summary }}{{ end }}'
+  - name: telegram-critical
+    telegram_configs:
+      - bot_token: __ALERT_TELEGRAM_BOT_TOKEN__
+        chat_id: __ALERT_TELEGRAM_CHAT_ID__
+        parse_mode: HTML
+        send_resolved: true
+        message: '{{ if eq .Status "resolved" }}✅ <b>QueenChat recovered</b>\n<b>{{ .CommonLabels.alertname }}</b>\nResolved: {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}{{ else }}🚨 <b>QueenChat alert</b>\n<b>{{ .CommonLabels.alertname }}</b>\nSeverity: {{ .CommonLabels.severity }}\nService: {{ .CommonLabels.service }}\nStarted: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}\nSummary: {{ .CommonAnnotations.summary }}{{ end }}'

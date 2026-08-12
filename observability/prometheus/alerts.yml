@@ -4,104 +4,189 @@ groups:
       - alert: ApiDown
         expr: up{job="queenchat-api"} == 0
         for: 1m
-        labels: {severity: critical}
-        annotations: {summary: "API down", description: "QueenChat API has been unreachable for 1m."}
+        labels: {severity: critical, service: api}
+        annotations: {summary: "QueenChat API is unreachable", description: "Prometheus cannot scrape the API for 1 minute."}
+      - alert: PublicSiteUnavailable
+        expr: probe_success{job="blackbox-https",target="queenchat.ru"} == 0
+        for: 2m
+        labels: {severity: critical, service: public-site}
+        annotations: {summary: "Public QueenChat site is unavailable", description: "HTTPS probe for queenchat.ru has failed for 2 minutes."}
+      - alert: MonitoringSiteUnavailable
+        expr: probe_success{job="blackbox-https",target="monitor.queenchat.ru"} == 0
+        for: 2m
+        labels: {severity: warning, service: grafana}
+        annotations: {summary: "Grafana public access is unavailable", description: "HTTPS probe for monitor.queenchat.ru has failed for 2 minutes."}
       - alert: PrometheusTargetDown
-        expr: up == 0
-        for: 2m
+        expr: up{job!~"queenchat-api|node"} == 0
+        for: 5m
         labels: {severity: warning}
-        annotations: {summary: "Prometheus target down", description: "{{ $labels.job }} is unreachable."}
-      - alert: SiteUnavailable
-        expr: probe_success{job="blackbox-https"} == 0
-        for: 2m
-        labels: {severity: critical}
-        annotations: {summary: "Public site unavailable", description: "https://queenchat.ru probe failed for 2m."}
+        annotations: {summary: "Monitoring target is unreachable", description: "{{ $labels.job }} has been unreachable for 5 minutes."}
       - alert: TLSExpirySoon
-        expr: probe_ssl_earliest_cert_expiry{job="blackbox-https"} - time() < 14*24*3600
+        expr: probe_ssl_earliest_cert_expiry - time() < 14*24*3600
         for: 15m
         labels: {severity: warning}
-        annotations: {summary: "TLS expiry soon", description: "TLS certificate expires in under 14 days."}
+        annotations: {summary: "TLS certificate expires soon", description: "{{ $labels.target }} certificate expires in under 14 days."}
       - alert: TLSExpiryCritical
-        expr: probe_ssl_earliest_cert_expiry{job="blackbox-https"} - time() < 7*24*3600
+        expr: probe_ssl_earliest_cert_expiry - time() < 7*24*3600
         for: 15m
         labels: {severity: critical}
-        annotations: {summary: "TLS expiry critical", description: "TLS certificate expires in under 7 days."}
-  - name: queenchat.resources
-    rules:
-      - alert: DiskUsageWarning
-        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 75
-        for: 10m
-        labels: {severity: warning}
-        annotations: {summary: "Disk usage high", description: "Root filesystem is over 75%."}
-      - alert: DiskUsageCritical
-        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 85
-        for: 5m
-        labels: {severity: critical}
-        annotations: {summary: "Disk usage critical", description: "Root filesystem is over 85%."}
-      - alert: DiskUsageEmergency
-        expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 92
-        for: 2m
-        labels: {severity: critical}
-        annotations: {summary: "Disk usage emergency", description: "Root filesystem is over 92%."}
-      - alert: MemoryAvailableLow
-        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < .15
-        for: 10m
-        labels: {severity: warning}
-        annotations: {summary: "Memory available low", description: "Available RAM is below 15%."}
-      - alert: MemoryAvailableCritical
-        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < .08
-        for: 5m
-        labels: {severity: critical}
-        annotations: {summary: "Memory available critical", description: "Available RAM is below 8%."}
-      - alert: CpuHigh
-        expr: 100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 85
-        for: 10m
-        labels: {severity: warning}
-        annotations: {summary: "CPU high", description: "CPU is above 85% for 10m."}
-      - alert: CpuCritical
-        expr: 100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 95
-        for: 5m
-        labels: {severity: critical}
-        annotations: {summary: "CPU critical", description: "CPU is above 95% for 5m."}
+        annotations: {summary: "TLS certificate expiry is critical", description: "{{ $labels.target }} certificate expires in under 7 days."}
+
   - name: queenchat.application
     rules:
       - alert: ApiErrorRateHigh
-        expr: sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > .02 and sum(rate(http_requests_total[5m])) > .1
+        expr: (sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.02) and sum(rate(http_requests_total[5m])) > 0.1
         for: 5m
-        labels: {severity: warning}
-        annotations: {summary: "High API error rate", description: "5xx rate is above 2% for 5m."}
+        labels: {severity: warning, service: api}
+        annotations: {summary: "API 5xx error ratio is high", description: "5xx ratio exceeded 2% with at least 0.1 requests/sec for 5 minutes."}
       - alert: ApiErrorRateCritical
-        expr: sum(rate(http_requests_total{status_code=~"5.."}[2m])) / sum(rate(http_requests_total[2m])) > .10 and sum(rate(http_requests_total[2m])) > .1
+        expr: (sum(rate(http_requests_total{status_code=~"5.."}[2m])) / sum(rate(http_requests_total[2m])) > 0.10) and sum(rate(http_requests_total[2m])) > 0.1
         for: 2m
-        labels: {severity: critical}
-        annotations: {summary: "Critical API error rate", description: "5xx rate is above 10% for 2m."}
+        labels: {severity: critical, service: api}
+        annotations: {summary: "API 5xx error ratio is critical", description: "5xx ratio exceeded 10% with at least 0.1 requests/sec for 2 minutes."}
       - alert: RpsHigh
         expr: sum(rate(http_requests_total[5m])) > 50
         for: 5m
-        labels: {severity: warning}
-        annotations: {summary: "High request rate", description: "API is above 50 RPS."}
+        labels: {severity: warning, service: api}
+        annotations: {summary: "API request rate is high", description: "Sustained API request rate exceeded 50 requests/sec for 5 minutes."}
       - alert: RpsCritical
         expr: sum(rate(http_requests_total[2m])) > 150
         for: 2m
-        labels: {severity: critical}
-        annotations: {summary: "Critical request rate", description: "API is above 150 RPS."}
+        labels: {severity: critical, service: api}
+        annotations: {summary: "API request rate is critical", description: "Sustained API request rate exceeded 150 requests/sec for 2 minutes."}
       - alert: ApiLatencyHigh
-        expr: histogram_quantile(.95, sum by(le) (rate(http_request_duration_seconds_bucket{normalized_route!~"/api/files/upload.*"}[5m]))) > 1
+        expr: histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket{normalized_route!~"/api/files/upload.*|/uploads/.*"}[5m]))) > 1
         for: 5m
-        labels: {severity: warning}
-        annotations: {summary: "API latency high", description: "API p95 is above 1s for 5m."}
+        labels: {severity: warning, service: api}
+        annotations: {summary: "API p95 latency is high", description: "Non-upload API p95 latency exceeded 1 second for 5 minutes."}
       - alert: ApiLatencyCritical
-        expr: histogram_quantile(.95, sum by(le) (rate(http_request_duration_seconds_bucket{normalized_route!~"/api/files/upload.*"}[3m]))) > 3
+        expr: histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket{normalized_route!~"/api/files/upload.*|/uploads/.*"}[3m]))) > 3
         for: 3m
-        labels: {severity: critical}
-        annotations: {summary: "API latency critical", description: "API p95 is above 3s for 3m."}
+        labels: {severity: critical, service: api}
+        annotations: {summary: "API p95 latency is critical", description: "Non-upload API p95 latency exceeded 3 seconds for 3 minutes."}
+      - alert: DisconnectSpike
+        expr: sum(rate(queenchat_websocket_disconnects_total[5m])) > 0.2 and sum(rate(queenchat_websocket_disconnects_total[5m])) > 3 * clamp_min(sum(rate(queenchat_websocket_connections_opened_total[5m])), 0.01)
+        for: 5m
+        labels: {severity: warning, service: websocket}
+        annotations: {summary: "WebSocket disconnect spike", description: "Disconnects are sustained above 0.2/sec and more than three times opens."}
+      - alert: WSRateLimitSpike
+        expr: sum(rate(queenchat_websocket_rate_limit_total[5m])) > 0.1
+        for: 5m
+        labels: {severity: warning, service: websocket}
+        annotations: {summary: "WebSocket rate-limit spike", description: "WebSocket rate-limit rejections exceeded 0.1/sec for 5 minutes."}
+      - alert: LoginRateLimitSpike
+        expr: sum(increase(queenchat_rate_limit_hits_total{policy=~"login.*|.*login.*"}[5m])) > 20
+        for: 2m
+        labels: {severity: warning, service: security}
+        annotations: {summary: "Login rate-limit spike", description: "More than 20 login-related rate-limit rejections occurred in 5 minutes."}
+
+  - name: queenchat.host
+    rules:
+      - alert: MemoryAvailableLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.15
+        for: 5m
+        labels: {severity: warning, service: host}
+        annotations: {summary: "Host memory available is low", description: "Available memory is below 15%."}
+      - alert: MemoryAvailableCritical
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.08
+        for: 3m
+        labels: {severity: critical, service: host}
+        annotations: {summary: "Host memory available is critical", description: "Available memory is below 8%."}
+      - alert: SwapChurnWithLowMemory
+        expr: (rate(node_vmstat_pswpin[5m]) + rate(node_vmstat_pswpout[5m]) > 10) and (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.15)
+        for: 5m
+        labels: {severity: warning, service: host}
+        annotations: {summary: "Host is actively swapping under low memory", description: "Sustained swap I/O and low MemAvailable indicate active memory pressure."}
+      - alert: CpuHigh
+        expr: 100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 85
+        for: 10m
+        labels: {severity: warning, service: host}
+        annotations: {summary: "Host CPU is high", description: "Average CPU usage exceeded 85% for 10 minutes."}
+      - alert: CpuCritical
+        expr: 100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 95
+        for: 5m
+        labels: {severity: critical, service: host}
+        annotations: {summary: "Host CPU is critical", description: "Average CPU usage exceeded 95% for 5 minutes."}
+      - alert: LoadHigh
+        expr: node_load1 > count without(cpu, mode) (node_cpu_seconds_total{mode="idle"}) * 1.5
+        for: 10m
+        labels: {severity: warning, service: host}
+        annotations: {summary: "Host load is high", description: "Load average is above 1.5 times available CPU cores for 10 minutes."}
+      - alert: DiskUsageWarning
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}) > 75
+        for: 10m
+        labels: {severity: warning, service: host}
+        annotations: {summary: "Root filesystem usage is high", description: "Root filesystem is over 75% used."}
+      - alert: DiskUsageCritical
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}) > 85
+        for: 5m
+        labels: {severity: critical, service: host}
+        annotations: {summary: "Root filesystem usage is critical", description: "Root filesystem is over 85% used."}
+      - alert: DiskUsageEmergency
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}) > 92
+        for: 2m
+        labels: {severity: critical, service: host}
+        annotations: {summary: "Root filesystem usage is emergency", description: "Root filesystem is over 92% used."}
+      - alert: DiskWillFillIn48Hours
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h], 48*3600) < 0 and deriv(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) < -1
+        for: 30m
+        labels: {severity: warning, service: host}
+        annotations: {summary: "Root filesystem may fill within 48 hours", description: "Free disk is declining and the current trend predicts exhaustion within 48 hours."}
+      - alert: DiskWillFillIn24Hours
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h], 24*3600) < 0 and deriv(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}[6h]) < -1
+        for: 30m
+        labels: {severity: critical, service: host}
+        annotations: {summary: "Root filesystem may fill within 24 hours", description: "Free disk is declining and the current trend predicts exhaustion within 24 hours."}
+      - alert: InodesHigh
+        expr: 100 * (1 - node_filesystem_files_free{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"} / node_filesystem_files{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}) > 90
+        for: 10m
+        labels: {severity: warning, service: host}
+        annotations: {summary: "Root filesystem inode usage is high", description: "More than 90% of root filesystem inodes are used."}
+
+  - name: queenchat.data
+    rules:
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels: {severity: critical, service: postgres}
+        annotations: {summary: "PostgreSQL is unreachable", description: "postgres_exporter cannot connect to PostgreSQL for 1 minute."}
+      - alert: PostgresConnectionsHigh
+        expr: sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > 0.80
+        for: 10m
+        labels: {severity: warning, service: postgres}
+        annotations: {summary: "PostgreSQL connections are high", description: "Connections exceed 80% of max_connections for 10 minutes."}
+      - alert: PostgresConnectionsCritical
+        expr: sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > 0.90
+        for: 5m
+        labels: {severity: critical, service: postgres}
+        annotations: {summary: "PostgreSQL connections are critical", description: "Connections exceed 90% of max_connections for 5 minutes."}
+      - alert: PostgresDeadlocks
+        expr: increase(pg_stat_database_deadlocks[15m]) >= 3
+        for: 2m
+        labels: {severity: warning, service: postgres}
+        annotations: {summary: "PostgreSQL deadlocks detected", description: "At least three deadlocks occurred within 15 minutes."}
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels: {severity: critical, service: redis}
+        annotations: {summary: "Redis is unreachable", description: "redis_exporter cannot connect to Redis for 1 minute."}
       - alert: RedisEvictions
         expr: increase(redis_evicted_keys_total[5m]) > 0
         for: 2m
-        labels: {severity: warning}
-        annotations: {summary: "Redis evictions", description: "Redis evicted keys."}
-      - alert: PostgresDeadlocks
-        expr: increase(pg_stat_database_deadlocks[5m]) > 0
-        for: 2m
-        labels: {severity: warning}
-        annotations: {summary: "PostgreSQL deadlocks", description: "PostgreSQL reported deadlocks."}
+        labels: {severity: warning, service: redis}
+        annotations: {summary: "Redis evictions occurred", description: "Redis evicted one or more keys in the last 5 minutes."}
+      - alert: RedisMemoryHigh
+        expr: redis_memory_max_bytes > 0 and redis_memory_used_bytes / redis_memory_max_bytes > 0.80
+        for: 10m
+        labels: {severity: warning, service: redis}
+        annotations: {summary: "Redis memory usage is high", description: "Redis used memory exceeds 80% of configured maxmemory."}
+      - alert: RedisMemoryCritical
+        expr: redis_memory_max_bytes > 0 and redis_memory_used_bytes / redis_memory_max_bytes > 0.90
+        for: 5m
+        labels: {severity: critical, service: redis}
+        annotations: {summary: "Redis memory usage is critical", description: "Redis used memory exceeds 90% of configured maxmemory."}
+      - alert: RedisBlockedClients
+        expr: redis_blocked_clients > 0
+        for: 5m
+        labels: {severity: warning, service: redis}
+        annotations: {summary: "Redis has blocked clients", description: "One or more Redis clients have remained blocked for 5 minutes."}
