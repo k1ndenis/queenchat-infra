@@ -15,7 +15,7 @@ changelog_file=${6:-}
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 releases_dir="$project_root/releases"
 
-case "$version_code:$minimum_version_code:$mandatory" in
+case "$version_code:$minimum_version_code" in
   *[!0-9:]* | :* | *::*) echo "Version codes must be positive integers" >&2; exit 64 ;;
 esac
 if [ "$version_code" -lt 1 ] || [ "$minimum_version_code" -lt 1 ] || [ "$minimum_version_code" -gt "$version_code" ]; then
