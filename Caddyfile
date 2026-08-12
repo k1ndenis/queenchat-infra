@@ -64,6 +64,7 @@ queenchat.ru {
 
     @android_apk path_regexp android_apk ^/downloads/queenchat-[0-9]+\.[0-9]+\.[0-9]+\.apk$
     handle @android_apk {
+        uri strip_prefix /downloads
         root * /srv/releases
         header Content-Type application/vnd.android.package-archive
         header Content-Disposition "attachment"
