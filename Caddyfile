@@ -2,6 +2,20 @@ www.queenchat.ru {
     redir https://queenchat.ru{uri} permanent
 }
 
+monitor.queenchat.ru {
+    tls k1ndenis.dev@gmail.com
+
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+    }
+
+    reverse_proxy grafana:3000
+}
+
 queenchat.ru {
     tls k1ndenis.dev@gmail.com
 

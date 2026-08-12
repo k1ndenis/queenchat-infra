@@ -1,12 +1,16 @@
 global:
   resolve_timeout: 5m
 route:
-  receiver: "null"
+  receiver: telegram
   group_by: [alertname, job, severity]
   group_wait: 45s
   group_interval: 10m
   repeat_interval: 6h
 receivers:
-  - name: "null"
-# To enable Telegram, use the native telegram_configs receiver from the
-# documented template after ALERT_TELEGRAM_BOT_TOKEN and CHAT_ID are supplied.
+  - name: telegram
+    telegram_configs:
+      - bot_token: __ALERT_TELEGRAM_BOT_TOKEN__
+        chat_id: __ALERT_TELEGRAM_CHAT_ID__
+        parse_mode: HTML
+        send_resolved: true
+        message: '{{ if eq .Status "resolved" }}✅ QueenChat recovered{{ else }}🚨 QueenChat: {{ .CommonAnnotations.summary }}{{ end }}\nSeverity: {{ .CommonLabels.severity }}\n{{ .CommonAnnotations.description }}'

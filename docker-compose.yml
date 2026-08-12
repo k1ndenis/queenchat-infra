@@ -154,9 +154,19 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.28.1
     restart: unless-stopped
-    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    environment:
+      ALERT_TELEGRAM_BOT_TOKEN: ${ALERT_TELEGRAM_BOT_TOKEN:?Set ALERT_TELEGRAM_BOT_TOKEN in .env}
+      ALERT_TELEGRAM_CHAT_ID: ${ALERT_TELEGRAM_CHAT_ID:?Set ALERT_TELEGRAM_CHAT_ID in .env}
+    # Render Telegram credentials only inside the container. Docker Compose
+    # never expands them into the checked-in Alertmanager configuration.
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        sed "s|__ALERT_TELEGRAM_BOT_TOKEN__|$${ALERT_TELEGRAM_BOT_TOKEN}|g; s|__ALERT_TELEGRAM_CHAT_ID__|$${ALERT_TELEGRAM_CHAT_ID}|g" /etc/alertmanager-template/alertmanager.yml > /tmp/alertmanager.yml;
+        amtool check-config /tmp/alertmanager.yml;
+        exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager
     volumes:
-      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager-template/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     networks: [queenchat_network]
     mem_limit: 60m
