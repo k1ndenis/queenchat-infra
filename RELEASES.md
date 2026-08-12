@@ -1,19 +1,46 @@
-# Android APK release
+# Android APK releases
 
-The public APK is deployment-only and is not part of the frontend build or Docker image.
-It is served at `https://queenchat.ru/downloads/queenchat.apk` from
-`/opt/projects/queen-chat/releases/queenchat.apk` through Caddy's read-only volume.
+Android releases are deployment artifacts, not frontend build inputs or Docker
+images. Publish only non-debuggable, signed release APKs after verifying the
+certificate chain documented in `client/ANDROID_BUILD.md`.
 
-From the build machine, upload a newly built APK:
+Each release is immutable and versioned:
 
-```bash
-scp -i ~/.ssh/deploy android/app/build/outputs/apk/debug/app-debug.apk deploy@192.124.189.26:/tmp/queenchat.apk
+```text
+https://queenchat.ru/downloads/queenchat-<versionName>.apk
 ```
 
-On the VPS, atomically publish it and verify it:
+The legacy `https://queenchat.ru/downloads/queenchat.apk` remains available for
+existing links but is not changed automatically by the updater workflow.
+
+From the build machine, upload the already verified release APK to a temporary
+location on the VPS. Then publish it atomically:
 
 ```bash
-install -m 0644 -o deploy -g deploy /tmp/queenchat.apk /opt/projects/queen-chat/releases/queenchat.apk.new && mv /opt/projects/queen-chat/releases/queenchat.apk.new /opt/projects/queen-chat/releases/queenchat.apk
-sha256sum /opt/projects/queen-chat/releases/queenchat.apk
-curl -fsSI https://queenchat.ru/downloads/queenchat.apk
+./scripts/publish_android_release.sh /path/to/app-release.apk 2 1.1.0 1 false changelog.txt
+```
+
+The command copies the APK once into `releases/`, computes its SHA-256 and
+size, and atomically writes `android_release.json`. It refuses to replace an
+existing versioned artifact.
+
+When the identical versioned APK was uploaded in advance, use the strict
+metadata-only mode instead:
+
+```bash
+./scripts/publish_android_release.sh --metadata-only \
+  /opt/projects/queen-chat/releases/queenchat-1.1.0.apk \
+  2 1.1.0 1 false changelog.txt
+```
+
+This mode requires the destination artifact to already exist and compares both
+its SHA-256 and byte size with the supplied APK before atomically replacing
+metadata. It never overwrites the APK.
+
+Verify live delivery after publication:
+
+```bash
+curl -fsS https://queenchat.ru/api/app/android/version | jq .
+curl -fsSI https://queenchat.ru/downloads/queenchat-1.1.0.apk
+curl -fsS https://queenchat.ru/downloads/queenchat-1.1.0.apk | sha256sum
 ```
